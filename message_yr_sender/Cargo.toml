@@ -1,0 +1,11 @@
+[package]
+name = "message_sender"
+version = "0.1.0"
+authors = ["Björn Nyberg <bjorn.nyberg@gmail.com>"]
+
+[dependencies]
+rand = "*"
+nanomsg = "0.6.0"
+rss = "0.4"
+time = "0.1"
+hyper = { version = "0.9", default-features = false, features = ["security-framework"] }

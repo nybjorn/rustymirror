@@ -1,0 +1,9 @@
+[package]
+name = "message_receiver"
+version = "0.1.0"
+authors = ["Björn Nyberg <bjorn.nyberg@gmail.com>"]
+
+[dependencies]
+nanomsg = "0.6.0"
+sdl2 = "0.24.0"
+sdl2_ttf = "0.24.0"
