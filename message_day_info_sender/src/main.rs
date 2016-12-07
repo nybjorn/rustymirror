@@ -45,7 +45,7 @@ fn main() {
     //let url ="ipc:///tmp/pubsub.ipc";
     let url = "tcp://127.0.0.1:8021";
     let mut socket = Socket::new(Protocol::Pub).unwrap();
-    let mut endpoint = socket.bind(url).unwrap();
+    let mut endpoint = socket.connect(url).unwrap();
     let mut count = 1u32;
 
     match socket.set_ipv4_only(true) {
@@ -64,9 +64,13 @@ fn main() {
     let deserialized_data: Dagar = serde_json::from_str(&mut buffer).unwrap();
     println!("{:?}", deserialized_data);
     println!("Server is ready.");
+    let namnsdagsbarn: String = deserialized_data.dagar[0].namnsdag.join(", ");
+    let msg = format!("{} {}| Vecka {}|{}",
+                      deserialized_data.dagar[0].datum, deserialized_data.dagar[0].veckodag,
+                      deserialized_data.dagar[0].vecka,
+                      namnsdagsbarn);
 
     loop {
-        let msg = format!("{} #{}", "weather",  count);
         match socket.write_all(msg.as_bytes()) {
             Ok(..) => println!("Published '{}'.", msg),
             Err(err) => {
@@ -74,7 +78,7 @@ fn main() {
                 break
             }
         }
-        thread::sleep(Duration::from_millis(400));
+        thread::sleep(Duration::from_millis(4000));
         count += 1;
     }
 

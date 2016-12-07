@@ -18,9 +18,9 @@ use rss::Channel;
 
 fn main() {
     //let url ="ipc:///tmp/pubsub.ipc";
-    let url = "tcp://127.0.0.1:8021";
+    let url = "tcp://127.0.0.1:8022";
     let mut socket = Socket::new(Protocol::Pub).unwrap();
-    let mut endpoint = socket.bind(url).unwrap();
+    let mut endpoint = socket.connect(url).unwrap();
     let mut count = 1u32;
 
     match socket.set_ipv4_only(true) {
@@ -33,7 +33,6 @@ fn main() {
         Err(e) => panic!("Could not fetch Logentries data: {}", e)
     };
 
-    // Turn response into stream so we can parse it line by line
     let reader = BufReader::new(response);
     let channel = Channel::read_from(reader).unwrap();
 

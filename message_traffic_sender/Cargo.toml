@@ -1,5 +1,5 @@
 [package]
-name = "message_sender"
+name = "message_traffic_sender"
 version = "0.1.0"
 authors = ["Björn Nyberg <bjorn.nyberg@gmail.com>"]
 

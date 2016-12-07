@@ -141,7 +141,7 @@ fn main() {
 
     let url = "tcp://127.0.0.1:5555";
     let mut socket = Socket::new(Protocol::Pub).unwrap();
-    let mut endpoint = socket.bind(url).unwrap();
+    let mut endpoint = socket.connect(url).unwrap();
 
 
     match socket.set_ipv4_only(true) {
@@ -150,13 +150,6 @@ fn main() {
     }
 
     let client = Client::new();
-
-//    let mut res = client.get(api_path.as_str()).send().unwrap();
-//    let mut buffer = String::new();
-//    res.read_to_string(&mut buffer).unwrap();
-//    println!("{:?}", buffer);
-//    let deserialized_data: RealTimeDepartures = serde_json::from_str(&mut buffer).unwrap();
-
 
     println!("Server is ready.");
 

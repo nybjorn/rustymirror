@@ -12,6 +12,7 @@ use sdl2::render::TextureQuery;
 use sdl2::render::Renderer;
 use sdl2::pixels::Color;
 use sdl2::render::Texture;
+use sdl2::render::BlendMode;
 use sdl2_ttf::Font;
 
 use nanomsg::{Socket, Protocol, PollFd, PollInOut, PollRequest};
@@ -30,51 +31,52 @@ macro_rules! rect (
     )
 );
 
-fn show_text(text: String,  font_percent: &mut Font, disp_size: Rect, renderer: &mut Renderer) {
-    renderer.clear();
+fn show_text(text: String, font_percent: &mut Font, disp_size: Rect, renderer: &mut Renderer, x_offset: u32 ) {
     let mut split = text.split("|");
-    let mut offset = 32;
-    for s in split {
-        let surface_coffee_percent = font_percent.render((&s)).blended_wrapped(Color::RGBA(255, 255, 255, 255), 300).unwrap();
+    let mut offset = 20;
+    for text in split {
+        println!("{}",text);
+        let surface_coffee_percent = font_percent.render((&text)).blended_wrapped(Color::RGBA(255, 255, 255, 255), 300).unwrap();
         let mut coffee_tex = renderer.create_texture_from_surface(&surface_coffee_percent).unwrap();
         let TextureQuery { width, height, .. } = coffee_tex.query();
-        let coffe_tex_rect = rect!(disp_size.width() - 100 - width, disp_size.height() - offset - height, width, height);
+        let coffe_tex_rect = rect!(0 + x_offset, 0 + offset, width, height);
         offset = offset + height;
+        renderer.set_blend_mode(BlendMode::None);
         renderer.copy(&coffee_tex, None, Some(coffe_tex_rect));
     }
-
     renderer.present();
 }
 
 
 
 fn main() {
-    //    let url ="ipc:///tmp/pubsub.ipc";
-    let weather_url = "tcp://127.0.0.1:8021";
-    let url = "tcp://127.0.0.1:5555";
-    let mut socket_weather = Socket::new(Protocol::Sub).unwrap();
-    //let mut endpoint = socket_weather.connect(weather_url).unwrap();
-    let mut endpoint = socket_weather.bind(weather_url).unwrap();
+    //    let traffic_url ="ipc:///tmp/pubsub.ipc";
+    let day_url = "tcp://127.0.0.1:8021";
+    let weather_url = "tcp://127.0.0.1:8022";
+    let traffic_url = "tcp://127.0.0.1:5555";
+    let mut socket_day = Socket::new(Protocol::Sub).unwrap();
+    let mut endpoint_day = socket_day.bind(day_url).unwrap();
 
     let mut socket = Socket::new(Protocol::Sub).unwrap();
-    let mut endpoint = socket.connect(url).unwrap();
+    let mut endpoint = socket.bind(traffic_url).unwrap();
+
+    let mut socket_weather = Socket::new(Protocol::Sub).unwrap();
+    let mut endpoint_weather = socket_weather.bind(weather_url).unwrap();
 
 
-    match socket_weather.subscribe("") {
-        Ok(_) => println!("Subscribed to '{}'.", "traffic"),
+    match socket_day.subscribe("") {
+        Ok(_) => println!("Subscribed to '{}'.", "day"),
         Err(err) => panic!("{}", err)
     }
     match socket.subscribe("") {
         Ok(_) => println!("Subscribed to '{}'.", "traffic"),
         Err(err) => panic!("{}", err)
     }
-    //
-    //    match socket.set_ipv4_only(true) {
-    //        Ok(..) => {},
-    //        Err(err) => panic!("Failed to change ipv4 only on the socket: {}", err)
-    //    }
+    match socket_weather.subscribe("") {
+        Ok(_) => println!("Subscribed to '{}'.", "weather"),
+        Err(err) => panic!("{}", err)
+    }
 
-    //   thread::sleep(Duration::from_millis(400));
     let sdl_context = sdl2::init().unwrap();
     let video_subsys = sdl_context.video().unwrap();
     let ttf_context = sdl2_ttf::init().unwrap();
@@ -95,14 +97,15 @@ fn main() {
     // Load a font
     let path: &Path = Path::new("TRATV___.TTF");
     let mut font = ttf_context.load_font(path, 128).unwrap();
-    let mut font_percent = ttf_context.load_font(path, 32).unwrap();
+    let mut font_percent = ttf_context.load_font(path, 18).unwrap();
     font.set_style(sdl2_ttf::STYLE_BOLD);
 
 
+    let mut pollfd_vec: Vec<PollFd> = vec![
+        socket.new_pollfd(PollInOut::In),
+        socket_day.new_pollfd(PollInOut::In),
+        socket_weather.new_pollfd(PollInOut::In)];
 
-
-
-    let mut pollfd_vec: Vec<PollFd> = vec![socket.new_pollfd(PollInOut::In), socket_weather.new_pollfd(PollInOut::In)];
     let mut poll_req = PollRequest::new(&mut pollfd_vec[..]);
     let timeout = 1000;
     'mainloop: loop {
@@ -113,10 +116,10 @@ fn main() {
         }
         if poll_req.get_fds()[1].can_read() {
             let mut msg = String::new();
-            match socket_weather.read_to_string(&mut msg) {
+            match socket_day.read_to_string(&mut msg) {
                 Ok(_) => {
-                    println!("Recv '{}'.", msg);
-                    show_text(msg, &mut font_percent, disp_size, &mut renderer);
+                    println!("Day Recv '{}'.", msg);
+                    show_text(msg, &mut font_percent, disp_size, &mut renderer, 250);
                 },
                 Err(err) => {
                     println!("Client failed to receive msg '{}'.", err);
@@ -127,8 +130,20 @@ fn main() {
             let mut msg = String::new();
             match socket.read_to_string(&mut msg) {
                 Ok(_) => {
-                    println!("Recv '{}'.", msg);
-                    show_text(msg, &mut font_percent, disp_size, &mut renderer);
+                    println!("Traffic Recv '{}'.", msg);
+                    show_text(msg, &mut font_percent, disp_size, &mut renderer, 0);
+                },
+                Err(err) => {
+                    println!("Client failed to receive msg '{}'.", err);
+                }
+            }
+        }
+        if poll_req.get_fds()[2].can_read() {
+            let mut msg = String::new();
+            match socket_weather.read_to_string(&mut msg) {
+                Ok(_) => {
+                    println!("Weather Recv '{}'.", msg);
+                    show_text(msg, &mut font_percent, disp_size, &mut renderer, 500);
                 },
                 Err(err) => {
                     println!("Client failed to receive msg '{}'.", err);
@@ -145,4 +160,6 @@ fn main() {
     }
 
     endpoint.shutdown();
+    endpoint_day.shutdown();
+    endpoint_weather.shutdown();
 }
