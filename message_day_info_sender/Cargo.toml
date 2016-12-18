@@ -11,3 +11,4 @@ serde_json = "0.8"
 serde_derive = "0.8.18"
 time = "0.1"
 hyper = { version = "0.9", default-features = false, features = ["security-framework"] }
+rocksdb = "0.5.0"
