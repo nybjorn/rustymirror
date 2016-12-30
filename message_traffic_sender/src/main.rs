@@ -11,6 +11,9 @@ extern crate hyper;
 
 
 extern crate time;
+extern crate clap;
+
+use clap::{Arg, App, SubCommand};
 
 use nanomsg::{Socket, Protocol};
 
@@ -123,21 +126,32 @@ fn fetchRealTimeDepartures(client: &Client, api_path: &String, station: String) 
 }
 
 fn main() {
+
+    let matches = App::new("message_traffic_sender")
+        .arg(Arg::with_name("api_key")
+                 .help("Api key from trafiklab") // Displayed when showing help info
+                 .requires("stops")            // Says, "If the user uses "input", they MUST
+                 .required(true)                // By default this argument MUST be present
+        )
+        .arg(Arg::with_name("stops")
+            .help(", separated list of stations")
+        )
+        .get_matches();
     //let url ="ipc:///Stringp/pubsub.ipc";
-    if env::args().count() != 3 {
-        println!("Usage: {} <apikey> <stop[,s]",
-                 env::args().nth(0).unwrap());
-        std::process::exit(1);
-    }
+//    if env::args().count() != 3 {
+//        println!("Usage: {} <apikey> <stop[,s]",
+//                 env::args().nth(0).unwrap());
+//        std::process::exit(1);
+//    }
 
   //  let station_pendeln = "1525";
   //  let station_buss = "1508";
 
-    let api_key = env::args().nth(1).unwrap();
+    let api_key = matches.value_of("api_key").unwrap();
     let api_path = format!("https://api.sl.se/api2/realtimedepartures.json?key={}&timewindow=10", api_key);
     println!("{}", api_path);
 
-    let stops = env::args().nth(2).unwrap();
+    let stops = matches.value_of("stops").unwrap();
 
     let url = "tcp://127.0.0.1:5555";
     let mut socket = Socket::new(Protocol::Pub).unwrap();
