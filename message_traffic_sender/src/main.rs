@@ -1,5 +1,4 @@
 #![feature(proc_macro)]
-#![feature(custom_attribute)]
 #[macro_use]
 extern crate serde_derive;
 
@@ -7,9 +6,6 @@ extern crate serde;
 extern crate serde_json;
 extern crate nanomsg;
 extern crate hyper;
-
-
-
 extern crate time;
 extern crate clap;
 
@@ -79,8 +75,6 @@ struct StopInfo {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Journey {
-    #[serde(rename = "SiteId")]
-    site_id: u32,
     #[serde(rename = "TransportMode")]
     transport_mode: String,
     #[serde(rename = "StopAreaName")]
@@ -115,18 +109,31 @@ struct Deviation {
     text: String
 }
 
-fn fetchRealTimeDepartures(client: &Client, api_path: &String, station: String) -> RealTimeDepartures {
+fn fetch_real_time_departures(client: &Client, api_path: &String, station: String) -> Result<RealTimeDepartures, String> {
     let station_path = format!("{}&siteid={}", api_path, station);
+    println!("{:?}", client);
     println!("{}", station_path);
-    let mut res = client.get(station_path.as_str()).send().unwrap();
-    let mut buffer = String::new();
-    res.read_to_string(&mut buffer).unwrap();
-    println!("{:?}", buffer);
-    return serde_json::from_str(&mut buffer).unwrap();
+    let mut response = client.get(station_path.as_str()).send();
+    match response {
+        Ok(ref mut res) if res.status == hyper::Ok => {
+            println!("{:?}", res);
+            let mut buffer = String::new();
+            res.read_to_string(&mut buffer).unwrap();
+            println!("{:?}", buffer);
+            Ok(serde_json::from_str(&mut buffer).unwrap())
+        },
+        Ok(res) => {
+            println!("{:?}", res);
+            Err(String::from("No contact"))
+        },
+        Err(err) => {
+            println!("{:?}", err);
+            Err(String::from("No contact"))
+        }
+    }
 }
 
 fn main() {
-
     let matches = App::new("message_traffic_sender")
         .arg(Arg::with_name("api_key")
                  .help("Api key from trafiklab") // Displayed when showing help info
@@ -137,18 +144,9 @@ fn main() {
             .help(", separated list of stations")
         )
         .get_matches();
-    //let url ="ipc:///Stringp/pubsub.ipc";
-//    if env::args().count() != 3 {
-//        println!("Usage: {} <apikey> <stop[,s]",
-//                 env::args().nth(0).unwrap());
-//        std::process::exit(1);
-//    }
-
-  //  let station_pendeln = "1525";
-  //  let station_buss = "1508";
 
     let api_key = matches.value_of("api_key").unwrap();
-    let api_path = format!("https://api.sl.se/api2/realtimedepartures.json?key={}&timewindow=10", api_key);
+    let api_path = format!("http://api.sl.se/api2/realtimedeparturesV4.json?key={}&timewindow=10", api_key);
     println!("{}", api_path);
 
     let stops = matches.value_of("stops").unwrap();
@@ -163,7 +161,8 @@ fn main() {
         Err(err) => panic!("Failed to change ipv4 only on the socket: {}", err)
     }
 
-    let client = Client::new();
+    let mut client = Client::new();
+    client.set_read_timeout(Some(Duration::new(30, 0)));
 
     println!("Server is ready.");
 
@@ -172,23 +171,28 @@ fn main() {
         all_msg = format!("Avgångar");
         for stop in stops.split(",") {
             println!("{}", stop);
-            let deserialized_data: RealTimeDepartures = fetchRealTimeDepartures(&client, &api_path, String::from(stop));
-            println!("{:?}", deserialized_data);
-            for journey in deserialized_data.response_data.buses {
-                let msg = format!("{} {}|{}|{}",
-                                  journey.transport_mode,
-                                  journey.line_number,
-                                  journey.destination,
-                                  journey.display_time );
-                all_msg = format!("{}|{}", all_msg, msg);
-            }
-            for journey in deserialized_data.response_data.trams {
-                let msg = format!("{} {}|{}|{}",
-                                  journey.transport_mode,
-                                  journey.line_number,
-                                  journey.destination,
-                                  journey.display_time );
-                all_msg = format!("{}|{}", all_msg, msg);
+
+            match fetch_real_time_departures(&client, &api_path, String::from(stop)) {
+                Ok(deserialized_data) => {
+                    println!("{:?}", deserialized_data);
+                    for journey in deserialized_data.response_data.buses {
+                        let msg = format!("{} {}|{}|{}",
+                                          journey.transport_mode,
+                                          journey.line_number,
+                                          journey.destination,
+                                          journey.display_time);
+                        all_msg = format!("{}|{}", all_msg, msg);
+                    }
+                    for journey in deserialized_data.response_data.trams {
+                        let msg = format!("{} {}|{}|{}",
+                                          journey.transport_mode,
+                                          journey.line_number,
+                                          journey.destination,
+                                          journey.display_time);
+                        all_msg = format!("{}|{}", all_msg, msg);
+                    }
+                },
+                _ => all_msg = format!("{}|{} information saknas", all_msg, stop)
             }
         }
 
