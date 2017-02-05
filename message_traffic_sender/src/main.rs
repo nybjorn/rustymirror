@@ -70,13 +70,36 @@ struct StopInfo {
     #[serde(rename = "StopAreaNumber")]
     stop_area_number: u32,
     #[serde(rename = "TransportMode")]
-    transport_mode: String
+    transport_mode: TransportMode
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+enum TransportMode {
+    BUS,
+    TRAM,
+    METRO,
+    TRAIN,
+    SHIP
+}
+
+impl TransportMode {
+    fn string(&self) -> String {
+        match *self {
+            TransportMode::BUS => String::from("Buss"),
+            TransportMode::TRAM => String::from("Lokalbana"),
+            TransportMode::METRO => String::from("T-bana"),
+            TransportMode::TRAIN => String::from("Pendeltåg"),
+            TransportMode::SHIP => String::from("Båt")
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Journey {
     #[serde(rename = "TransportMode")]
-    transport_mode: String,
+    transport_mode: TransportMode,
+    #[serde(rename = "GroupOfLine")]
+    group_of_line: Option<String>,
     #[serde(rename = "StopAreaName")]
     stop_area_name: String,
     #[serde(rename = "StopAreaNumber")]
@@ -177,22 +200,22 @@ fn main() {
                     println!("{:?}", deserialized_data);
                     for journey in deserialized_data.response_data.buses {
                         let msg = format!("{} {}|{}|{}",
-                                          journey.transport_mode,
+                                          journey.group_of_line.unwrap_or(journey.transport_mode.string()),
                                           journey.line_number,
                                           journey.destination,
                                           journey.display_time);
-                        all_msg = format!("{}|{}", all_msg, msg);
+                        all_msg = format!("{}| |{}", all_msg, msg);
                     }
                     for journey in deserialized_data.response_data.trams {
                         let msg = format!("{} {}|{}|{}",
-                                          journey.transport_mode,
+                                          journey.group_of_line.unwrap_or(journey.transport_mode.string()),
                                           journey.line_number,
                                           journey.destination,
                                           journey.display_time);
-                        all_msg = format!("{}|{}", all_msg, msg);
+                        all_msg = format!("{}| |{}", all_msg, msg);
                     }
                 },
-                _ => all_msg = format!("{}|{} information saknas", all_msg, stop)
+                _ => all_msg = format!("{}|Stop {} information saknas", all_msg, stop)
             }
         }
 
