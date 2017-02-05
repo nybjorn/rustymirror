@@ -1,5 +1,5 @@
 [root]
-name = "message_sender"
+name = "message_yr_sender"
 version = "0.1.0"
 dependencies = [
  "hyper 0.9.12 (registry+https://github.com/rust-lang/crates.io-index)",

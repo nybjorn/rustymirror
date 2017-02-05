@@ -1,4 +1,3 @@
-
 extern crate hyper;
 extern crate nanomsg;
 extern crate time;
@@ -27,31 +26,34 @@ fn main() {
         Ok(..) => {},
         Err(err) => panic!("Failed to change ipv4 only on the socket: {}", err)
     }
+    //http://opendata.smhi.se/apidocs/metfcst/parameters.html
+    //http://opendata-download-metfcst.smhi.se/api/category/pmp1.5g/version/2/geotype/point/lon/16/lat/58/data.json
     let client = Client::new();
-    let mut response = match client.get("http://www.yr.no/place/Sweden/Stockholm/Stockholm/forecast.rss").send() {
-        Ok(response) => response,
-        Err(e) => panic!("Could not fetch Logentries data: {}", e)
-    };
-
-    let reader = BufReader::new(response);
-    let channel = Channel::read_from(reader).unwrap();
-
-
-    println!("{:#?}", channel);
-
-    println!("Server is ready.");
-
     loop {
-        let msg = format!("{} #{}", "weather",  count);
-        match socket.write_all(msg.as_bytes()) {
-            Ok(..) => println!("Published '{}'.", msg),
+        let mut response = match client.get("http://www.yr.no/place/Sweden/Stockholm/Stockholm/forecast.rss").send() {
+            Ok(response) => response,
+            Err(e) => panic!("Could not fetch Logentries data: {}", e)
+        };
+
+        let reader = BufReader::new(response);
+        let mut channel = Channel::read_from(reader).unwrap();
+        println!("{:#?}", channel);
+        let mut msg = String::new();
+        msg = format!("Prognos");
+        for item in channel.items.drain(0..3) {
+            msg = format!("{}|{}|{}", msg, item.title.unwrap(), item.description.unwrap());
+        }
+
+        let formatted = str::replace(msg.as_str(), ".", "| ");
+
+        match socket.write_all(formatted.as_bytes()) {
+            Ok(..) => println!("Published '{}'.", formatted),
             Err(err) => {
                 println!("Server failed to publish '{}'.", err);
                 break
             }
         }
-        thread::sleep(Duration::from_millis(400));
-        count += 1;
+        thread::sleep(Duration::from_millis(30000));
     }
 
     endpoint.shutdown();
