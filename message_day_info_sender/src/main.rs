@@ -1,5 +1,5 @@
 #![feature(proc_macro)]
-#![feature(custom_attribute)]
+//#![feature(custom_attribute)]
 #[macro_use]
 extern crate serde_derive;
 
@@ -9,7 +9,9 @@ extern crate hyper;
 extern crate nanomsg;
 extern crate time;
 extern crate rocksdb;
+extern crate clap;
 
+use clap::{Arg, App, SubCommand};
 use nanomsg::{Socket, Protocol};
 
 use std::thread;
@@ -35,7 +37,7 @@ struct DagarInfo {
     datum: String,
     veckodag: String,
     vecka: u32,
-    namnsdag:Vec<String>,
+    namnsdag: Vec<String>,
     flaggdag: String
 }
 
@@ -43,9 +45,9 @@ struct DagarInfo {
 fn fetch_today_and_store_month(db: &DB, date: String) -> DagarInfo {
     let client = Client::new();
     let start = time::now();
-    let uri_of_the_day = format!("http://api.dryg.net/dagar/v2.1/{}/{}", start.tm_year + 1900, start.tm_mon+1);
-    println!("{}", uri_of_the_day);
-    let mut res = client.get(uri_of_the_day.as_str()).send().unwrap();
+    let uri_of_the_month = format!("http://api.dryg.net/dagar/v2.1/{}/{}", start.tm_year + 1900, start.tm_mon + 1);
+    println!("{}", uri_of_the_month);
+    let mut res = client.get(uri_of_the_month.as_str()).send().unwrap();
     let mut buffer = String::new();
     res.read_to_string(&mut buffer).unwrap();
     println!("{:?}", buffer);
@@ -57,14 +59,28 @@ fn fetch_today_and_store_month(db: &DB, date: String) -> DagarInfo {
             today = day;
         }
     }
-    let iter = db.iterator(IteratorMode::From(date.as_bytes(), Direction::Reverse)); // From a key in Direction::{forward,reverse}
+    let mut iter = db.iterator(IteratorMode::From(date.as_bytes(), Direction::Reverse)); // From a key in Direction::{forward,reverse}
+    iter.next(); // do not delete today
     for (key, _) in iter {
+        println!("Deleting {:?}", key);
         db.delete(key.as_ref());
     }
     return today;
 }
 
 fn main() {
+    let matches = App::new("message_day_info_sender")
+        .subcommand(SubCommand::with_name("clear")                        // The name we call argument with
+            .about("clears rocksdb database"))
+        .get_matches();
+
+    if matches.is_present("clear") {
+        println!("Clearing rocksdb");
+        DB::destroy(&rocksdb::Options::default(), "rocksdb_storage");
+    }
+
+
+    // let clear_db = matches.value_of("clear").unwrap();
     let db = DB::open_default("rocksdb_storage").unwrap();
 
     //let url ="ipc:///tmp/pubsub.ipc";
@@ -77,38 +93,34 @@ fn main() {
         Err(err) => panic!("Failed to change ipv4 only on the socket: {}", err)
     }
 
-    let start = time::now();
-    let date =format!("{}-{}-{}", start.tm_year + 1900, start.tm_mon+1, start.tm_mday);
-
-    let mut today: DagarInfo = Default::default();
-    match db.get(date.as_bytes()) {
-        Ok(Some(value)) => today = serde_json::from_str(value.to_utf8().unwrap()).unwrap(),
-        Ok(None) => {
-                        today = fetch_today_and_store_month(&db, date);
-        },
-        Err(e) => println!("operational problem encountered: {}", e),
-    }
-
-
-    /*
-    let uri_of_the_day = format!("http://api.dryg.net/dagar/v2.1/{}/{}/{}", start.tm_year + 1900, start.tm_mon+1, start.tm_mday);
-    println!("{}", uri_of_the_day);
-    let mut res = client.get(uri_of_the_day.as_str()).send().unwrap();
-    let mut buffer = String::new();
-    res.read_to_string(&mut buffer).unwrap();
-    println!("{:?}", buffer);
-    let deserialized_data: Dagar = serde_json::from_str(&mut buffer).unwrap();
-    println!("{:?}", deserialized_data);
-    println!("Server is ready.");
-    */
-    let namnsdagsbarn: String = today.namnsdag.join(", ");
-    let msg = format!("{} {}|Vecka {}|{}",
-                      today.datum, today.veckodag,
-                      today.vecka,
-                      namnsdagsbarn);
-    
-
     loop {
+        let start = time::now();
+        let date = format!("{}-{:02}-{:02}", start.tm_year + 1900, start.tm_mon + 1, start.tm_mday);
+        println!("Date: {}", date);
+
+        let mut today: DagarInfo = Default::default();
+        println!("Date: {:?}", date.as_bytes());
+        match db.get(date.as_bytes()) {
+            Ok(Some(value)) => {
+                println!("Some {:?}", value.to_utf8());
+                today = serde_json::from_str(value.to_utf8().unwrap()).unwrap()
+            },
+            Ok(None) => {
+                println!("None");
+                today = fetch_today_and_store_month(&db, date);
+            },
+            Err(e) => println!("operational problem encountered: {}", e),
+        }
+
+        println!("{:?}", today);
+
+        let namnsdagsbarn: String = today.namnsdag.join(", ");
+        let msg = format!("{} {}|Vecka {}|{}",
+                          today.datum, today.veckodag,
+                          today.vecka,
+                          namnsdagsbarn);
+
+
         match socket.write_all(msg.as_bytes()) {
             Ok(..) => println!("Published '{}'.", msg),
             Err(err) => {
@@ -116,7 +128,7 @@ fn main() {
                 break
             }
         }
-        thread::sleep(Duration::from_millis(4000));
+        thread::sleep(Duration::from_millis(40000));
     }
 
     endpoint.shutdown();

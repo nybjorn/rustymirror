@@ -6,9 +6,10 @@ authors = ["Björn Nyberg <bjorn.nyberg@gmail.com>"]
 [dependencies]
 rand = "*"
 nanomsg = "0.6.0"
-serde = "0.8"
-serde_json = "0.8"
-serde_derive = "0.8.18"
+serde = "0.9.1"
+serde_json = "0.9.1"
+serde_derive = "0.9.1"
 time = "0.1"
 hyper = { version = "0.9", default-features = false, features = ["security-framework"] }
 rocksdb = "0.5.0"
+clap = "2.19.3"
