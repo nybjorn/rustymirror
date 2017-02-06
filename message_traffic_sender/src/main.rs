@@ -214,6 +214,30 @@ fn main() {
                                           journey.display_time);
                         all_msg = format!("{}| |{}", all_msg, msg);
                     }
+                    for journey in deserialized_data.response_data.trains {
+                        let msg = format!("{} {}|{}|{}",
+                                          journey.group_of_line.unwrap_or(journey.transport_mode.string()),
+                                          journey.line_number,
+                                          journey.destination,
+                                          journey.display_time);
+                        all_msg = format!("{}| |{}", all_msg, msg);
+                    }
+                    for journey in deserialized_data.response_data.ships {
+                        let msg = format!("{} {}|{}|{}",
+                                          journey.group_of_line.unwrap_or(journey.transport_mode.string()),
+                                          journey.line_number,
+                                          journey.destination,
+                                          journey.display_time);
+                        all_msg = format!("{}| |{}", all_msg, msg);
+                    }
+                    for journey in deserialized_data.response_data.metros {
+                        let msg = format!("{} {}|{}|{}",
+                                          journey.group_of_line.unwrap_or(journey.transport_mode.string()),
+                                          journey.line_number,
+                                          journey.destination,
+                                          journey.display_time);
+                        all_msg = format!("{}| |{}", all_msg, msg);
+                    }
                 },
                 _ => all_msg = format!("{}|Stop {} information saknas", all_msg, stop)
             }
